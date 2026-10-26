@@ -22,4 +22,17 @@ model Vehicle {
   currentMileage Int     @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  mileageRecords MileageRecord[]
+}
+
+model MileageRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  vehicleId  String   @db.Uuid
+  mileage    Int
+  recordedAt DateTime @default(now())
+  note       String?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, recordedAt(sort: Desc)])
 }
