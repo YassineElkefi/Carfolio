@@ -1,8 +1,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createVehicle, getVehicles, updateVehicle, deleteVehicle } from './lib/vehicles';
-import type { CreateVehicleData } from './lib/vehicles';
+import type { CreateVehicleData } from './types/vehicle';
 import type { Vehicle } from './types/vehicle';
+import { getMileageHistory, createMileageRecord } from './lib/mileage';
+import type { MileageRecord } from './types/mileage';
 
 const initialForm: CreateVehicleData = {
   make: '',
@@ -19,6 +21,14 @@ function App() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<CreateVehicleData>(initialForm);
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [mileageRecords, setMileageRecords] = useState<MileageRecord[]>([]);
+  const [mileageLoading, setMileageLoading] = useState(false);
+  const [mileageSubmitting, setMileageSubmitting] = useState(false);
+  const [mileageError, setMileageError] = useState('');
+  const [mileageValue, setMileageValue] = useState('');
+  const [mileageNote, setMileageNote] = useState('');
 
   const loadVehicles = useCallback(async () => {
     setLoading(true);
@@ -88,6 +98,69 @@ function cancelEdit() {
   setEditingVehicleId(null);
   setForm(initialForm);
   setError('');
+}
+
+async function handleViewMileage(vehicleId: string) {
+  if (selectedVehicleId === vehicleId) {
+    setSelectedVehicleId(null);
+    setMileageError('');
+    return;
+  }
+
+  setSelectedVehicleId(vehicleId);
+  setMileageRecords([]);
+  setMileageError('');
+  setMileageLoading(true);
+
+  try {
+    const records = await getMileageHistory(vehicleId);
+    setMileageRecords(records);
+  } catch (err) {
+    setMileageError(
+      err instanceof Error ? err.message : 'Failed to load mileage history.',
+    );
+  } finally {
+    setMileageLoading(false);
+  }
+}
+
+async function handleMileageSubmit(
+  event: React.FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
+
+  if (!selectedVehicleId || mileageValue.trim() === '') return;
+
+  const mileage = Number(mileageValue);
+
+  if (!Number.isInteger(mileage) || mileage < 0) {
+    setMileageError('Enter a valid non-negative whole number.');
+    return;
+  }
+
+  setMileageSubmitting(true);
+  setMileageError('');
+
+  try {
+    await createMileageRecord(selectedVehicleId, {
+      mileage,
+      note: mileageNote.trim() || undefined,
+    });
+
+    setMileageValue('');
+    setMileageNote('');
+
+    const records = await getMileageHistory(selectedVehicleId);
+    setMileageRecords(records);
+
+    await loadVehicles();
+  } catch (err) {
+    setMileageError(
+      err instanceof Error ? err.message : 'Failed to save mileage.',
+    );
+  } finally {
+    setMileageSubmitting(false);
+  }
 }
 
 async function handleDelete(vehicle: Vehicle) {
@@ -224,6 +297,119 @@ async function handleDelete(vehicle: Vehicle) {
                         Delete
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleViewMileage(vehicle.id)}
+                      className="mt-3 w-full rounded-lg border border-cyan-900/70 px-3 py-2 text-sm font-medium text-cyan-400 transition hover:bg-cyan-950/50"
+                    >
+                      {selectedVehicleId === vehicle.id
+                        ? 'Hide mileage history'
+                        : 'Mileage history'}
+                    </button>
+                      {selectedVehicleId === vehicle.id && (
+                        <div className="mt-5 border-t border-slate-800 pt-5">
+                          <h4 className="font-semibold">Mileage history</h4>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Record and track your vehicle's odometer readings.
+                          </p>
+
+                          {mileageError && (
+                            <div
+                              role="alert"
+                              className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
+                            >
+                              {mileageError}
+                            </div>
+                          )}
+
+                          <form onSubmit={handleMileageSubmit} className="mt-4 space-y-3">
+                            <div>
+                              <label
+                                htmlFor={`mileage-value-${vehicle.id}`}
+                                className="mb-1 block text-sm text-slate-300"
+                              >
+                                Mileage (km)
+                              </label>
+                              <input
+                                id={`mileage-value-${vehicle.id}`}
+                                type="number"
+                                min={vehicle.currentMileage}
+                                step={1}
+                                required
+                                value={mileageValue}
+                                onChange={(event) => setMileageValue(event.target.value)}
+                                placeholder={`At least ${vehicle.currentMileage} km`}
+                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor={`mileage-note-${vehicle.id}`}
+                                className="mb-1 block text-sm text-slate-300"
+                              >
+                                Note (optional)
+                              </label>
+                              <input
+                                id={`mileage-note-${vehicle.id}`}
+                                value={mileageNote}
+                                onChange={(event) => setMileageNote(event.target.value)}
+                                maxLength={255}
+                                placeholder="e.g. After a long trip"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
+                              />
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={mileageSubmitting}
+                              className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
+                            >
+                              {mileageSubmitting ? 'Saving...' : 'Record mileage'}
+                            </button>
+                          </form>
+
+                          <div className="mt-5">
+                            <h5 className="text-sm font-semibold text-slate-200">
+                              Previous readings
+                            </h5>
+
+                            {mileageLoading ? (
+                              <p className="mt-3 text-sm text-slate-400">
+                                Loading history...
+                              </p>
+                            ) : mileageRecords.length === 0 && !mileageError ? (
+                              <p className="mt-3 text-sm text-slate-500">
+                                No mileage records yet.
+                              </p>
+                            ) : (
+                              <ul className="mt-3 space-y-3">
+                                {mileageRecords.map((record) => (
+                                  <li
+                                    key={record.id}
+                                    className="rounded-lg bg-slate-800/70 p-3"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <span className="font-semibold">
+                                        {record.mileage.toLocaleString()} km
+                                      </span>
+                                      <time className="text-right text-xs text-slate-400">
+                                        {new Date(record.recordedAt).toLocaleDateString()}
+                                      </time>
+                                    </div>
+
+                                    {record.note && (
+                                      <p className="mt-2 text-sm text-slate-400">
+                                        {record.note}
+                                      </p>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
                   </article>
                 ))}
               </div>

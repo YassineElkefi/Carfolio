@@ -1,14 +1,8 @@
 
 import { apiRequest } from './api';
-import type { Vehicle } from '../types/vehicle';
+import type { CreateVehicleData, Vehicle } from '../types/vehicle';
 
-export interface CreateVehicleData {
-  make: string;
-  model: string;
-  year: number;
-  licensePlate: string;
-  currentMileage: number;
-}
+
 
 export function getVehicles() {
   return apiRequest<Vehicle[]>('/vehicles');

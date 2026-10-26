@@ -8,3 +8,11 @@ export interface Vehicle {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CreateVehicleData {
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string;
+  currentMileage: number;
+}
