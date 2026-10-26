@@ -5,6 +5,8 @@ import type { CreateVehicleData } from './types/vehicle';
 import type { Vehicle } from './types/vehicle';
 import { getMileageHistory, createMileageRecord } from './lib/mileage';
 import type { MileageRecord } from './types/mileage';
+import { getFuelLogs, createFuelLog } from './lib/fuel';
+import type { FuelLog } from './types/fuel';
 
 const initialForm: CreateVehicleData = {
   make: '',
@@ -29,6 +31,22 @@ function App() {
   const [mileageError, setMileageError] = useState('');
   const [mileageValue, setMileageValue] = useState('');
   const [mileageNote, setMileageNote] = useState('');
+
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [fuelLoading, setFuelLoading] = useState(false);
+  const [fuelSubmitting, setFuelSubmitting] = useState(false);
+  const [fuelError, setFuelError] = useState('');
+
+  const [fuelDate, setFuelDate] = useState(
+    new Date().toLocaleDateString('en-CA'),
+  );
+  const [fuelMileage, setFuelMileage] = useState('');
+  const [fuelLiters, setFuelLiters] = useState('');
+  const [fuelCost, setFuelCost] = useState('');
+  const [fuelType, setFuelType] = useState('');
+  const [fuelNote, setFuelNote] = useState('');
+  const [selectedFuelVehicleId, setSelectedFuelVehicleId] =
+  useState<string | null>(null);
 
   const loadVehicles = useCallback(async () => {
     setLoading(true);
@@ -57,136 +75,237 @@ function App() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  
-async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-  event.preventDefault();
-  setSubmitting(true);
-  setError('');
 
-  try {
-    if (editingVehicleId) {
-      await updateVehicle(editingVehicleId, form);
-    } else {
-      await createVehicle(form);
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      if (editingVehicleId) {
+        await updateVehicle(editingVehicleId, form);
+      } else {
+        await createVehicle(form);
+      }
+
+      setForm(initialForm);
+      setEditingVehicleId(null);
+      await loadVehicles();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to save vehicle.',
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    setForm(initialForm);
-    setEditingVehicleId(null);
-    await loadVehicles();
-  } catch (err) {
-    setError(
-      err instanceof Error ? err.message : 'Failed to save vehicle.',
-    );
-  } finally {
-    setSubmitting(false);
-  }
-}
-
-function handleEdit(vehicle: Vehicle) {
-  setEditingVehicleId(vehicle.id);
-  setForm({
-    make: vehicle.make,
-    model: vehicle.model,
-    year: vehicle.year,
-    licensePlate: vehicle.licensePlate,
-    currentMileage: vehicle.currentMileage,
-  });
-  setError('');
-}
-
-function cancelEdit() {
-  setEditingVehicleId(null);
-  setForm(initialForm);
-  setError('');
-}
-
-async function handleViewMileage(vehicleId: string) {
-  if (selectedVehicleId === vehicleId) {
-    setSelectedVehicleId(null);
-    setMileageError('');
-    return;
   }
 
-  setSelectedVehicleId(vehicleId);
-  setMileageRecords([]);
-  setMileageError('');
-  setMileageLoading(true);
-
-  try {
-    const records = await getMileageHistory(vehicleId);
-    setMileageRecords(records);
-  } catch (err) {
-    setMileageError(
-      err instanceof Error ? err.message : 'Failed to load mileage history.',
-    );
-  } finally {
-    setMileageLoading(false);
-  }
-}
-
-async function handleMileageSubmit(
-  event: React.FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault();
-
-  if (!selectedVehicleId || mileageValue.trim() === '') return;
-
-  const mileage = Number(mileageValue);
-
-  if (!Number.isInteger(mileage) || mileage < 0) {
-    setMileageError('Enter a valid non-negative whole number.');
-    return;
-  }
-
-  setMileageSubmitting(true);
-  setMileageError('');
-
-  try {
-    await createMileageRecord(selectedVehicleId, {
-      mileage,
-      note: mileageNote.trim() || undefined,
+  function handleEdit(vehicle: Vehicle) {
+    setEditingVehicleId(vehicle.id);
+    setForm({
+      make: vehicle.make,
+      model: vehicle.model,
+      year: vehicle.year,
+      licensePlate: vehicle.licensePlate,
+      currentMileage: vehicle.currentMileage,
     });
-
-    setMileageValue('');
-    setMileageNote('');
-
-    const records = await getMileageHistory(selectedVehicleId);
-    setMileageRecords(records);
-
-    await loadVehicles();
-  } catch (err) {
-    setMileageError(
-      err instanceof Error ? err.message : 'Failed to save mileage.',
-    );
-  } finally {
-    setMileageSubmitting(false);
+    setError('');
   }
-}
 
-async function handleDelete(vehicle: Vehicle) {
-  const confirmed = window.confirm(
-    `Are you sure you want to delete your ${vehicle.make} ${vehicle.model}?`,
-  );
+  function cancelEdit() {
+    setEditingVehicleId(null);
+    setForm(initialForm);
+    setError('');
+  }
 
-  if (!confirmed) return;
-
-  setError('');
-
-  try {
-    await deleteVehicle(vehicle.id);
-
-    if (editingVehicleId === vehicle.id) {
-      cancelEdit();
+  async function handleViewMileage(vehicleId: string) {
+    if (selectedVehicleId === vehicleId) {
+      setSelectedVehicleId(null);
+      setMileageError('');
+      return;
     }
 
-    await loadVehicles();
-  } catch (err) {
-    setError(
-      err instanceof Error ? err.message : 'Failed to delete vehicle.',
-    );
-  }
-}
+    setSelectedVehicleId(vehicleId);
+    setMileageRecords([]);
+    setMileageError('');
+    setMileageLoading(true);
 
+    try {
+      const records = await getMileageHistory(vehicleId);
+      setMileageRecords(records);
+    } catch (err) {
+      setMileageError(
+        err instanceof Error ? err.message : 'Failed to load mileage history.',
+      );
+    } finally {
+      setMileageLoading(false);
+    }
+  }
+
+  async function handleMileageSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!selectedVehicleId || mileageValue.trim() === '') return;
+
+    const mileage = Number(mileageValue);
+
+    if (!Number.isInteger(mileage) || mileage < 0) {
+      setMileageError('Enter a valid non-negative whole number.');
+      return;
+    }
+
+    setMileageSubmitting(true);
+    setMileageError('');
+
+    try {
+      await createMileageRecord(selectedVehicleId, {
+        mileage,
+        note: mileageNote.trim() || undefined,
+      });
+
+      setMileageValue('');
+      setMileageNote('');
+
+      const records = await getMileageHistory(selectedVehicleId);
+      setMileageRecords(records);
+
+      await loadVehicles();
+    } catch (err) {
+      setMileageError(
+        err instanceof Error ? err.message : 'Failed to save mileage.',
+      );
+    } finally {
+      setMileageSubmitting(false);
+    }
+  }
+
+  async function handleDelete(vehicle: Vehicle) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete your ${vehicle.make} ${vehicle.model}?`,
+    );
+
+    if (!confirmed) return;
+
+    setError('');
+
+    try {
+      await deleteVehicle(vehicle.id);
+
+      if (editingVehicleId === vehicle.id) {
+        cancelEdit();
+      }
+
+      await loadVehicles();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to delete vehicle.',
+      );
+    }
+  }
+
+  async function handleViewFuel(vehicleId: string) {
+    if (selectedFuelVehicleId === vehicleId) {
+      setSelectedFuelVehicleId(null);
+      setFuelError('');
+      return;
+    }
+
+    setSelectedFuelVehicleId(vehicleId);
+    setFuelLogs([]);
+    setFuelError('');
+    setFuelLoading(true);
+
+    try {
+      const logs = await getFuelLogs(vehicleId);
+      setFuelLogs(logs);
+    } catch (err) {
+      setFuelError(
+        err instanceof Error ? err.message : 'Failed to load fuel history.',
+      );
+    } finally {
+      setFuelLoading(false);
+    }
+  }
+
+  async function handleFuelSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!selectedFuelVehicleId) return;
+
+    const vehicle = vehicles.find(
+      (item) => item.id === selectedFuelVehicleId,
+    );
+
+    if (!vehicle) return;
+
+    const mileage = Number(fuelMileage);
+    const liters = Number(fuelLiters);
+    const costInTnd = Number(fuelCost);
+
+    if (
+      !Number.isInteger(mileage) ||
+      mileage < vehicle.currentMileage
+    ) {
+      setFuelError(
+        `Mileage must be a whole number of at least ${vehicle.currentMileage} km.`,
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(liters) ||
+      liters <= 0 ||
+      !/^\d+(\.\d{1,3})?$/.test(fuelLiters)
+    ) {
+      setFuelError('Enter a valid fuel quantity with up to 3 decimals.');
+      return;
+    }
+
+    if (
+      !Number.isFinite(costInTnd) ||
+      costInTnd <= 0 ||
+      !/^\d+(\.\d{1,3})?$/.test(fuelCost)
+    ) {
+      setFuelError('Enter a valid cost in TND with up to 3 decimals.');
+      return;
+    }
+
+    setFuelSubmitting(true);
+    setFuelError('');
+
+    try {
+      await createFuelLog(selectedFuelVehicleId, {
+        date: new Date(`${fuelDate}T12:00:00`).toISOString(),
+        mileage,
+        liters,
+        totalCostMillimes: Math.round(costInTnd * 1000),
+        fuelType: fuelType || undefined,
+        note: fuelNote.trim() || undefined,
+      });
+
+      setFuelMileage('');
+      setFuelLiters('');
+      setFuelCost('');
+      setFuelType('');
+      setFuelNote('');
+      setFuelDate(new Date().toLocaleDateString('en-CA'));
+
+      const logs = await getFuelLogs(selectedFuelVehicleId);
+      setFuelLogs(logs);
+
+      await loadVehicles();
+    } catch (err) {
+      setFuelError(
+        err instanceof Error ? err.message : 'Failed to save fuel record.',
+      );
+    } finally {
+      setFuelSubmitting(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -306,110 +425,336 @@ async function handleDelete(vehicle: Vehicle) {
                         ? 'Hide mileage history'
                         : 'Mileage history'}
                     </button>
-                      {selectedVehicleId === vehicle.id && (
-                        <div className="mt-5 border-t border-slate-800 pt-5">
-                          <h4 className="font-semibold">Mileage history</h4>
-                          <p className="mt-1 text-sm text-slate-400">
-                            Record and track your vehicle's odometer readings.
-                          </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleViewFuel(vehicle.id)}
+                      className="mt-3 w-full rounded-lg border border-amber-900/70 px-3 py-2 text-sm font-medium text-amber-400 transition hover:bg-amber-950/50"
+                    >
+                      {selectedFuelVehicleId === vehicle.id
+                        ? 'Hide fuel tracking'
+                        : 'Fuel tracking'}
+                    </button>
+                    {selectedVehicleId === vehicle.id && (
+                      <div className="mt-5 border-t border-slate-800 pt-5">
+                        <h4 className="font-semibold">Mileage history</h4>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Record and track your vehicle's odometer readings.
+                        </p>
 
-                          {mileageError && (
-                            <div
-                              role="alert"
-                              className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
+                        {mileageError && (
+                          <div
+                            role="alert"
+                            className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
+                          >
+                            {mileageError}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleMileageSubmit} className="mt-4 space-y-3">
+                          <div>
+                            <label
+                              htmlFor={`mileage-value-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
                             >
-                              {mileageError}
+                              Mileage (km)
+                            </label>
+                            <input
+                              id={`mileage-value-${vehicle.id}`}
+                              type="number"
+                              min={vehicle.currentMileage}
+                              step={1}
+                              required
+                              value={mileageValue}
+                              onChange={(event) => setMileageValue(event.target.value)}
+                              placeholder={`At least ${vehicle.currentMileage} km`}
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`mileage-note-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
+                            >
+                              Note (optional)
+                            </label>
+                            <input
+                              id={`mileage-note-${vehicle.id}`}
+                              value={mileageNote}
+                              onChange={(event) => setMileageNote(event.target.value)}
+                              maxLength={255}
+                              placeholder="e.g. After a long trip"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={mileageSubmitting}
+                            className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
+                          >
+                            {mileageSubmitting ? 'Saving...' : 'Record mileage'}
+                          </button>
+                        </form>
+
+                        <div className="mt-5">
+                          <h5 className="text-sm font-semibold text-slate-200">
+                            Previous readings
+                          </h5>
+
+                          {mileageLoading ? (
+                            <p className="mt-3 text-sm text-slate-400">
+                              Loading history...
+                            </p>
+                          ) : mileageRecords.length === 0 && !mileageError ? (
+                            <p className="mt-3 text-sm text-slate-500">
+                              No mileage records yet.
+                            </p>
+                          ) : (
+                            <ul className="mt-3 space-y-3">
+                              {mileageRecords.map((record) => (
+                                <li
+                                  key={record.id}
+                                  className="rounded-lg bg-slate-800/70 p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="font-semibold">
+                                      {record.mileage.toLocaleString()} km
+                                    </span>
+                                    <time className="text-right text-xs text-slate-400">
+                                      {new Date(record.recordedAt).toLocaleDateString()}
+                                    </time>
+                                  </div>
+
+                                  {record.note && (
+                                    <p className="mt-2 text-sm text-slate-400">
+                                      {record.note}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {selectedFuelVehicleId === vehicle.id && (
+                      <div className="mt-5 border-t border-slate-800 pt-5">
+                        <h4 className="font-semibold">Fuel tracking</h4>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Record refuelling visits and track your fuel expenses.
+                        </p>
+
+                        {fuelError && (
+                          <div
+                            role="alert"
+                            className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
+                          >
+                            {fuelError}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleFuelSubmit} className="mt-4 space-y-3">
+                          <div>
+                            <label
+                              htmlFor={`fuel-date-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
+                            >
+                              Refuelling date
+                            </label>
+                            <input
+                              id={`fuel-date-${vehicle.id}`}
+                              type="date"
+                              required
+                              value={fuelDate}
+                              onChange={(event) => setFuelDate(event.target.value)}
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`fuel-mileage-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
+                            >
+                              Odometer (km)
+                            </label>
+                            <input
+                              id={`fuel-mileage-${vehicle.id}`}
+                              type="number"
+                              min={vehicle.currentMileage}
+                              step={1}
+                              required
+                              value={fuelMileage}
+                              onChange={(event) => setFuelMileage(event.target.value)}
+                              placeholder={`At least ${vehicle.currentMileage} km`}
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label
+                                htmlFor={`fuel-liters-${vehicle.id}`}
+                                className="mb-1 block text-sm text-slate-300"
+                              >
+                                Litres
+                              </label>
+                              <input
+                                id={`fuel-liters-${vehicle.id}`}
+                                type="number"
+                                min="0.001"
+                                step="0.001"
+                                required
+                                value={fuelLiters}
+                                onChange={(event) => setFuelLiters(event.target.value)}
+                                placeholder="e.g. 35.5"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor={`fuel-cost-${vehicle.id}`}
+                                className="mb-1 block text-sm text-slate-300"
+                              >
+                                Total cost (TND)
+                              </label>
+                              <input
+                                id={`fuel-cost-${vehicle.id}`}
+                                type="number"
+                                min="0.001"
+                                step="0.001"
+                                required
+                                value={fuelCost}
+                                onChange={(event) => setFuelCost(event.target.value)}
+                                placeholder="e.g. 75.500"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`fuel-type-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
+                            >
+                              Fuel type
+                            </label>
+                            <select
+                              id={`fuel-type-${vehicle.id}`}
+                              value={fuelType}
+                              onChange={(event) => setFuelType(event.target.value)}
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
+                            >
+                              <option value="">Select fuel type (optional)</option>
+                              <option value="Essence">Essence</option>
+                              <option value="Gasoil">Gasoil</option>
+                              <option value="Gasoil 50">Gasoil 50</option>
+                              <option value="GPL">GPL</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`fuel-note-${vehicle.id}`}
+                              className="mb-1 block text-sm text-slate-300"
+                            >
+                              Note (optional)
+                            </label>
+                            <input
+                              id={`fuel-note-${vehicle.id}`}
+                              value={fuelNote}
+                              onChange={(event) => setFuelNote(event.target.value)}
+                              maxLength={255}
+                              placeholder="e.g. Full tank"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={fuelSubmitting}
+                            className="w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
+                          >
+                            {fuelSubmitting ? 'Saving...' : 'Record refuelling'}
+                          </button>
+                        </form>
+
+                        <div className="mt-5 border-t border-slate-800 pt-4">
+                          <h5 className="font-semibold text-slate-200">Fuel history</h5>
+
+                          {!fuelLoading && fuelLogs.length > 0 && (
+                            <div className="mt-3 rounded-lg bg-amber-950/30 p-3">
+                              <p className="text-sm text-slate-400">Total recorded fuel expenses</p>
+                              <p className="mt-1 text-xl font-semibold text-amber-400">
+                                {(
+                                  fuelLogs.reduce(
+                                    (total, log) => total + log.totalCostMillimes,
+                                    0,
+                                  ) / 1000
+                                ).toLocaleString('fr-TN', {
+                                  minimumFractionDigits: 3,
+                                  maximumFractionDigits: 3,
+                                })}{' '}
+                                TND
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {fuelLogs.length} refuelling record
+                                {fuelLogs.length === 1 ? '' : 's'}
+                              </p>
                             </div>
                           )}
 
-                          <form onSubmit={handleMileageSubmit} className="mt-4 space-y-3">
-                            <div>
-                              <label
-                                htmlFor={`mileage-value-${vehicle.id}`}
-                                className="mb-1 block text-sm text-slate-300"
-                              >
-                                Mileage (km)
-                              </label>
-                              <input
-                                id={`mileage-value-${vehicle.id}`}
-                                type="number"
-                                min={vehicle.currentMileage}
-                                step={1}
-                                required
-                                value={mileageValue}
-                                onChange={(event) => setMileageValue(event.target.value)}
-                                placeholder={`At least ${vehicle.currentMileage} km`}
-                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
-                              />
-                            </div>
-
-                            <div>
-                              <label
-                                htmlFor={`mileage-note-${vehicle.id}`}
-                                className="mb-1 block text-sm text-slate-300"
-                              >
-                                Note (optional)
-                              </label>
-                              <input
-                                id={`mileage-note-${vehicle.id}`}
-                                value={mileageNote}
-                                onChange={(event) => setMileageNote(event.target.value)}
-                                maxLength={255}
-                                placeholder="e.g. After a long trip"
-                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
-                              />
-                            </div>
-
-                            <button
-                              type="submit"
-                              disabled={mileageSubmitting}
-                              className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
-                            >
-                              {mileageSubmitting ? 'Saving...' : 'Record mileage'}
-                            </button>
-                          </form>
-
-                          <div className="mt-5">
-                            <h5 className="text-sm font-semibold text-slate-200">
-                              Previous readings
-                            </h5>
-
-                            {mileageLoading ? (
-                              <p className="mt-3 text-sm text-slate-400">
-                                Loading history...
-                              </p>
-                            ) : mileageRecords.length === 0 && !mileageError ? (
-                              <p className="mt-3 text-sm text-slate-500">
-                                No mileage records yet.
-                              </p>
-                            ) : (
-                              <ul className="mt-3 space-y-3">
-                                {mileageRecords.map((record) => (
-                                  <li
-                                    key={record.id}
-                                    className="rounded-lg bg-slate-800/70 p-3"
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <span className="font-semibold">
-                                        {record.mileage.toLocaleString()} km
-                                      </span>
-                                      <time className="text-right text-xs text-slate-400">
-                                        {new Date(record.recordedAt).toLocaleDateString()}
-                                      </time>
-                                    </div>
-
-                                    {record.note && (
-                                      <p className="mt-2 text-sm text-slate-400">
-                                        {record.note}
+                          {fuelLoading ? (
+                            <p className="mt-3 text-sm text-slate-400">
+                              Loading fuel history...
+                            </p>
+                          ) : fuelLogs.length === 0 && !fuelError ? (
+                            <p className="mt-3 text-sm text-slate-500">
+                              No refuelling records yet.
+                            </p>
+                          ) : (
+                            <ul className="mt-3 space-y-3">
+                              {fuelLogs.map((log) => (
+                                <li
+                                  key={log.id}
+                                  className="rounded-lg bg-slate-800/70 p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-semibold text-amber-400">
+                                        {(log.totalCostMillimes / 1000).toLocaleString('fr-TN', {
+                                          minimumFractionDigits: 3,
+                                          maximumFractionDigits: 3,
+                                        })}{' '}
+                                        TND
                                       </p>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
+                                      <p className="mt-1 text-sm text-slate-300">
+                                        {log.liters.toLocaleString('fr-TN')} L
+                                        {log.fuelType ? ` · ${log.fuelType}` : ''}
+                                      </p>
+                                    </div>
+                                    <time className="text-right text-xs text-slate-400">
+                                      {new Date(log.date).toLocaleDateString()}
+                                    </time>
+                                  </div>
+
+                                  <p className="mt-2 text-xs text-slate-400">
+                                    Odometer: {log.mileage.toLocaleString()} km
+                                  </p>
+
+                                  {log.note && (
+                                    <p className="mt-2 text-sm text-slate-400">{log.note}</p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
-                      )}
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>
