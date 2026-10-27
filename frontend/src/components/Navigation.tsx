@@ -4,6 +4,7 @@ const links = [
   { to: '/', label: 'Garage', end: true },
   { to: '/maintenance', label: 'Maintenance & Parts', end: false },
   { to: '/deadlines', label: 'Deadlines', end: false },
+  { to: '/statistics', label: 'Statistics', end: false },
 ];
 
 export default function Navigation() {
