@@ -1,9 +1,9 @@
-
 import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/', label: 'Garage', end: true },
   { to: '/maintenance', label: 'Maintenance & Parts', end: false },
+  { to: '/deadlines', label: 'Deadlines', end: false },
 ];
 
 export default function Navigation() {
