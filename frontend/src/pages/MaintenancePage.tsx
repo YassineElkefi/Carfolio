@@ -23,6 +23,8 @@ import {
   LoaderPinwheel,
   Engine,
   Bubbles,
+  Truck,
+  ShieldAlert,
 } from 'lucide-react';
 import { AnimatePresence, m } from 'framer-motion';
 
@@ -57,7 +59,7 @@ function formatDate(date: string) {
   });
 }
 
-const CATEGORIES = ['Engine', 'Brakes', 'Clutch & Transmission', 'Suspension', 'Electrical', 'Fluids & Filters', 'Tires', 'Bodywork', 'Car Wash', 'Other'];
+const CATEGORIES = ['Engine', 'Brakes', 'Clutch & Transmission', 'Suspension', 'Electrical', 'Fluids & Filters', 'Tires', 'Bodywork', 'Car Wash', 'Towing', 'Other'];
 
 const CATEGORY_ICONS: Record<string, typeof Wrench> = {
   Engine: Engine,
@@ -69,6 +71,7 @@ const CATEGORY_ICONS: Record<string, typeof Wrench> = {
   Tires: LoaderPinwheel,
   Bodywork: CarFront,
   'Car Wash': Bubbles,
+  Towing: ShieldAlert,
   Other: Package,
 };
 

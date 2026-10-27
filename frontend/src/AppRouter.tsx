@@ -9,6 +9,7 @@ const GaragePage = lazy(() => import('./App'));
 const MileagePage = lazy(() => import('./pages/MileagePage'));
 const FuelPage = lazy(() => import('./pages/FuelPage'));
 const MaintenancePage = lazy(() => import('./pages/MaintenancePage'));
+const VehicleLogsPage = lazy(() => import('./pages/VehicleLogsPage'));
 const DeadlinesPage = lazy(() => import('./pages/DeadlinesPage'));
 const StatisticsPage = lazy(() => import('./pages/StatisticsPage'));
 
@@ -52,6 +53,7 @@ function AppLayout() {
                 <Route path="/mileage" element={<MileagePage />} />
                 <Route path="/fuel" element={<FuelPage />} />
                 <Route path="/maintenance" element={<MaintenancePage />} />
+                <Route path="/logs" element={<VehicleLogsPage />} />
                 <Route path="/deadlines" element={<DeadlinesPage />} />
                 <Route path="/statistics" element={<StatisticsPage />} />
               </Routes>

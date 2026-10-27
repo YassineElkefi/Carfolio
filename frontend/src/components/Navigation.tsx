@@ -9,6 +9,7 @@ import {
   Gauge,
   Sun,
   Moon,
+  ClipboardList,
 } from 'lucide-react';
 
 const links = [
@@ -16,6 +17,7 @@ const links = [
   { to: '/mileage', label: 'Mileage', mobileLabel: 'Miles', icon: Gauge, end: false },
   { to: '/fuel', label: 'Fuel', mobileLabel: 'Fuel', icon: Fuel, end: false },
   { to: '/maintenance', label: 'Maintenance', mobileLabel: 'Service', icon: Wrench, end: false },
+  { to: '/logs', label: 'Logs', mobileLabel: 'Logs', icon: ClipboardList, end: false },
   { to: '/deadlines', label: 'Deadlines', mobileLabel: 'Due', icon: CalendarClock, end: false },
   { to: '/statistics', label: 'Statistics', mobileLabel: 'Stats', icon: BarChart2, end: false },
 ];
