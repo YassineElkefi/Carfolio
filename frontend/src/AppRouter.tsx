@@ -1,22 +1,27 @@
-
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import App from './App';
-import MaintenancePage from './pages/MaintenancePage';
 import Navigation from './components/Navigation';
+import App from './App';
+import FuelPage from './pages/FuelPage';
+import MaintenancePage from './pages/MaintenancePage';
 import DeadlinesPage from './pages/DeadlinesPage';
 import StatisticsPage from './pages/StatisticsPage';
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Navigation />
+      <div className="app-shell">
+        <Navigation />
 
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/maintenance" element={<MaintenancePage />} />
-        <Route path="/deadlines" element={<DeadlinesPage />} />
-        <Route path="/statistics" element={<StatisticsPage />} />
-      </Routes>
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/fuel" element={<FuelPage />} />
+            <Route path="/maintenance" element={<MaintenancePage />} />
+            <Route path="/deadlines" element={<DeadlinesPage />} />
+            <Route path="/statistics" element={<StatisticsPage />} />
+          </Routes>
+        </div>
+      </div>
     </BrowserRouter>
   );
 }

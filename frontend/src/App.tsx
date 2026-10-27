@@ -1,14 +1,25 @@
-
 import { useCallback, useEffect, useState } from 'react';
-import { createVehicle, getVehicles, updateVehicle, deleteVehicle } from './lib/vehicles';
-import type { CreateVehicleData } from './types/vehicle';
-import type { Vehicle } from './types/vehicle';
-import { getMileageHistory, createMileageRecord } from './lib/mileage';
-import type { MileageRecord } from './types/mileage';
-import { getFuelLogs, createFuelLog } from './lib/fuel';
-import type { FuelLog } from './types/fuel';
+import {
+  Car,
+  Plus,
+  Gauge,
+  Fuel,
+  Wrench,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  ChevronRight,
+  LoaderCircle,
+  AlertCircle,
+  X,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-const initialForm: CreateVehicleData = {
+import { createVehicle, getVehicles, updateVehicle, deleteVehicle } from './lib/vehicles';
+import type { CreateVehicleData, Vehicle } from './types/vehicle';
+import { TunisianPlate } from './lib/tunisianPlate';
+
+const EMPTY_FORM: CreateVehicleData = {
   make: '',
   model: '',
   year: new Date().getFullYear(),
@@ -16,869 +27,354 @@ const initialForm: CreateVehicleData = {
   currentMileage: 0,
 };
 
-function App() {
+const CAR_COLORS = [
+  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444',
+];
+
+function getVehicleColor(id: string) {
+  const sum = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return CAR_COLORS[sum % CAR_COLORS.length];
+}
+
+export default function GaragePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState<CreateVehicleData>(initialForm);
-  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [form, setForm] = useState<CreateVehicleData>(EMPTY_FORM);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
-  const [mileageRecords, setMileageRecords] = useState<MileageRecord[]>([]);
-  const [mileageLoading, setMileageLoading] = useState(false);
-  const [mileageSubmitting, setMileageSubmitting] = useState(false);
-  const [mileageError, setMileageError] = useState('');
-  const [mileageValue, setMileageValue] = useState('');
-  const [mileageNote, setMileageNote] = useState('');
-
-  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
-  const [fuelLoading, setFuelLoading] = useState(false);
-  const [fuelSubmitting, setFuelSubmitting] = useState(false);
-  const [fuelError, setFuelError] = useState('');
-
-  const [fuelDate, setFuelDate] = useState(
-    new Date().toLocaleDateString('en-CA'),
-  );
-  const [fuelMileage, setFuelMileage] = useState('');
-  const [fuelLiters, setFuelLiters] = useState('');
-  const [fuelCost, setFuelCost] = useState('');
-  const [fuelType, setFuelType] = useState('');
-  const [fuelNote, setFuelNote] = useState('');
-  const [selectedFuelVehicleId, setSelectedFuelVehicleId] =
-  useState<string | null>(null);
-
-  const loadVehicles = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
-
     try {
-      const data = await getVehicles();
-      setVehicles(data);
+      setVehicles(await getVehicles());
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load vehicles.',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to load vehicles.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void loadVehicles();
-  }, [loadVehicles]);
+  useEffect(() => { void load(); }, [load]);
 
-  function updateField<K extends keyof CreateVehicleData>(
-    field: K,
-    value: CreateVehicleData[K],
-  ) {
-    setForm((current) => ({ ...current, [field]: value }));
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!menuOpenId) return;
+    function handler() { setMenuOpenId(null); }
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [menuOpenId]);
+
+  function openAdd() {
+    setEditingVehicle(null);
+    setForm(EMPTY_FORM);
+    setError('');
+    setModalOpen(true);
   }
 
+  function openEdit(v: Vehicle) {
+    setEditingVehicle(v);
+    setForm({ make: v.make, model: v.model, year: v.year, licensePlate: v.licensePlate, currentMileage: v.currentMileage });
+    setError('');
+    setModalOpen(true);
+    setMenuOpenId(null);
+  }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleDelete(v: Vehicle) {
+    setMenuOpenId(null);
+    if (!confirm(`Delete ${v.make} ${v.model}? This cannot be undone.`)) return;
+    try {
+      await deleteVehicle(v.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete vehicle.');
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setSubmitting(true);
     setError('');
-
     try {
-      if (editingVehicleId) {
-        await updateVehicle(editingVehicleId, form);
+      if (editingVehicle) {
+        await updateVehicle(editingVehicle.id, form);
       } else {
         await createVehicle(form);
       }
-
-      setForm(initialForm);
-      setEditingVehicleId(null);
-      await loadVehicles();
+      setModalOpen(false);
+      await load();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to save vehicle.',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to save vehicle.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  function handleEdit(vehicle: Vehicle) {
-    setEditingVehicleId(vehicle.id);
-    setForm({
-      make: vehicle.make,
-      model: vehicle.model,
-      year: vehicle.year,
-      licensePlate: vehicle.licensePlate,
-      currentMileage: vehicle.currentMileage,
-    });
-    setError('');
-  }
-
-  function cancelEdit() {
-    setEditingVehicleId(null);
-    setForm(initialForm);
-    setError('');
-  }
-
-  async function handleViewMileage(vehicleId: string) {
-    if (selectedVehicleId === vehicleId) {
-      setSelectedVehicleId(null);
-      setMileageError('');
-      return;
-    }
-
-    setSelectedVehicleId(vehicleId);
-    setMileageRecords([]);
-    setMileageError('');
-    setMileageLoading(true);
-
-    try {
-      const records = await getMileageHistory(vehicleId);
-      setMileageRecords(records);
-    } catch (err) {
-      setMileageError(
-        err instanceof Error ? err.message : 'Failed to load mileage history.',
-      );
-    } finally {
-      setMileageLoading(false);
-    }
-  }
-
-  async function handleMileageSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    if (!selectedVehicleId || mileageValue.trim() === '') return;
-
-    const mileage = Number(mileageValue);
-
-    if (!Number.isInteger(mileage) || mileage < 0) {
-      setMileageError('Enter a valid non-negative whole number.');
-      return;
-    }
-
-    setMileageSubmitting(true);
-    setMileageError('');
-
-    try {
-      await createMileageRecord(selectedVehicleId, {
-        mileage,
-        note: mileageNote.trim() || undefined,
-      });
-
-      setMileageValue('');
-      setMileageNote('');
-
-      const records = await getMileageHistory(selectedVehicleId);
-      setMileageRecords(records);
-
-      await loadVehicles();
-    } catch (err) {
-      setMileageError(
-        err instanceof Error ? err.message : 'Failed to save mileage.',
-      );
-    } finally {
-      setMileageSubmitting(false);
-    }
-  }
-
-  async function handleDelete(vehicle: Vehicle) {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete your ${vehicle.make} ${vehicle.model}?`,
-    );
-
-    if (!confirmed) return;
-
-    setError('');
-
-    try {
-      await deleteVehicle(vehicle.id);
-
-      if (editingVehicleId === vehicle.id) {
-        cancelEdit();
-      }
-
-      await loadVehicles();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to delete vehicle.',
-      );
-    }
-  }
-
-  async function handleViewFuel(vehicleId: string) {
-    if (selectedFuelVehicleId === vehicleId) {
-      setSelectedFuelVehicleId(null);
-      setFuelError('');
-      return;
-    }
-
-    setSelectedFuelVehicleId(vehicleId);
-    setFuelLogs([]);
-    setFuelError('');
-    setFuelLoading(true);
-
-    try {
-      const logs = await getFuelLogs(vehicleId);
-      setFuelLogs(logs);
-    } catch (err) {
-      setFuelError(
-        err instanceof Error ? err.message : 'Failed to load fuel history.',
-      );
-    } finally {
-      setFuelLoading(false);
-    }
-  }
-
-  async function handleFuelSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    if (!selectedFuelVehicleId) return;
-
-    const vehicle = vehicles.find(
-      (item) => item.id === selectedFuelVehicleId,
-    );
-
-    if (!vehicle) return;
-
-    const mileage = Number(fuelMileage);
-    const liters = Number(fuelLiters);
-    const costInTnd = Number(fuelCost);
-
-    if (
-      !Number.isInteger(mileage) ||
-      mileage < vehicle.currentMileage
-    ) {
-      setFuelError(
-        `Mileage must be a whole number of at least ${vehicle.currentMileage} km.`,
-      );
-      return;
-    }
-
-    if (
-      !Number.isFinite(liters) ||
-      liters <= 0 ||
-      !/^\d+(\.\d{1,3})?$/.test(fuelLiters)
-    ) {
-      setFuelError('Enter a valid fuel quantity with up to 3 decimals.');
-      return;
-    }
-
-    if (
-      !Number.isFinite(costInTnd) ||
-      costInTnd <= 0 ||
-      !/^\d+(\.\d{1,3})?$/.test(fuelCost)
-    ) {
-      setFuelError('Enter a valid cost in TND with up to 3 decimals.');
-      return;
-    }
-
-    setFuelSubmitting(true);
-    setFuelError('');
-
-    try {
-      await createFuelLog(selectedFuelVehicleId, {
-        date: new Date(`${fuelDate}T12:00:00`).toISOString(),
-        mileage,
-        liters,
-        totalCostMillimes: Math.round(costInTnd * 1000),
-        fuelType: fuelType || undefined,
-        note: fuelNote.trim() || undefined,
-      });
-
-      setFuelMileage('');
-      setFuelLiters('');
-      setFuelCost('');
-      setFuelType('');
-      setFuelNote('');
-      setFuelDate(new Date().toLocaleDateString('en-CA'));
-
-      const logs = await getFuelLogs(selectedFuelVehicleId);
-      setFuelLogs(logs);
-
-      await loadVehicles();
-    } catch (err) {
-      setFuelError(
-        err instanceof Error ? err.message : 'Failed to save fuel record.',
-      );
-    } finally {
-      setFuelSubmitting(false);
-    }
-  }
-
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
-        <header className="mb-10 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold tracking-[0.25em] text-cyan-400">
-              CARFOLIO
-            </p>
-            <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-              Your garage
-            </h1>
-            <p className="mt-2 text-slate-400">
-              Everything about your car, in one place.
-            </p>
-          </div>
+    <div className="page">
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', gap: '16px' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text-primary)' }}>
+            My Garage
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+            {vehicles.length === 0 ? 'No vehicles yet' : `${vehicles.length} vehicle${vehicles.length !== 1 ? 's' : ''}`}
+          </p>
+        </div>
 
-          <div className="hidden rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 sm:block">
-            <p className="text-sm text-slate-400">Vehicles</p>
-            <p className="mt-1 text-2xl font-semibold">{vehicles.length}</p>
-          </div>
-        </header>
+        <button type="button" onClick={openAdd} className="btn btn-primary">
+          <Plus size={15} />
+          Add vehicle
+        </button>
+      </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="mb-6 rounded-xl border border-red-900 bg-red-950/50 p-4 text-sm text-red-300"
-          >
-            {error}
-          </div>
-        )}
+      {error && !modalOpen && (
+        <div className="alert alert-error" style={{ marginBottom: '20px' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+          {error}
+        </div>
+      )}
 
-        <section className="grid gap-8 lg:grid-cols-[1fr_360px]">
-          <div>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">My vehicles</h2>
-              <button
-                type="button"
-                onClick={() => void loadVehicles()}
-                disabled={loading}
-                className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
-              >
-                {loading ? 'Loading...' : 'Refresh'}
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '60px 0', color: 'var(--text-tertiary)', justifyContent: 'center' }}>
+          <LoaderCircle size={20} className="spinner" />
+          <span style={{ fontSize: '13.5px' }}>Loading vehicles…</span>
+        </div>
+      ) : vehicles.length === 0 ? (
+        <div className="card empty-state">
+          <div style={{
+            width: '56px', height: '56px', borderRadius: '14px',
+            background: 'var(--accent-light)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', marginBottom: '16px'
+          }}>
+            <Car size={26} color="var(--accent)" />
+          </div>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600 }}>Your garage is empty</h2>
+          <p style={{ margin: '0 0 20px', fontSize: '13.5px', color: 'var(--text-secondary)', maxWidth: '280px' }}>
+            Add your first vehicle to start tracking mileage, fuel, maintenance, and costs.
+          </p>
+          <button type="button" onClick={openAdd} className="btn btn-primary">
+            <Plus size={15} />
+            Add your first vehicle
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          {vehicles.map((v) => {
+            const color = getVehicleColor(v.id);
+            return (
+              <article key={v.id} className="card" style={{ overflow: 'hidden', position: 'relative' }}>
+                {/* Color stripe */}
+                <div style={{ height: '4px', background: color, borderRadius: '12px 12px 0 0' }} />
+
+                <div style={{ padding: '20px' }}>
+                  {/* Header row */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '44px', height: '44px', borderRadius: '10px',
+                        background: `${color}18`, display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                      }}>
+                        <Car size={20} style={{ color }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.2px', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                          {v.make} {v.model}
+                        </div>
+                        <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{v.year}</span>
+                          <TunisianPlate plate={v.licensePlate} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '6px', borderRadius: '6px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenId(menuOpenId === v.id ? null : v.id);
+                        }}
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+
+                      {menuOpenId === v.id && (
+                        <div
+                          className="card-elevated"
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, zIndex: 20,
+                            width: '160px', padding: '6px', marginTop: '4px',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button type="button" className="nav-item" style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', gap: '8px' }} onClick={() => openEdit(v)}>
+                            <Pencil size={14} /> Edit vehicle
+                          </button>
+                          <button type="button" className="nav-item" style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', gap: '8px', color: 'var(--red)' }} onClick={() => void handleDelete(v)}>
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mileage stat */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '12px 14px', background: 'var(--bg-inset)',
+                    borderRadius: '8px', marginBottom: '16px'
+                  }}>
+                    <Gauge size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', marginBottom: '1px' }}>Odometer</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                        {v.currentMileage.toLocaleString()} km
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick links */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {[
+                      { to: '/fuel', icon: Fuel, label: 'Fuel' },
+                      { to: '/maintenance', icon: Wrench, label: 'Parts' },
+                      { to: '/deadlines', icon: CalendarLink, label: 'Reminders' },
+                    ].map(({ to, icon: Icon, label }) => (
+                      <Link
+                        key={to}
+                        to={to}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          gap: '5px', padding: '10px 6px', borderRadius: '8px',
+                          border: '1px solid var(--border-subtle)',
+                          textDecoration: 'none', color: 'var(--text-secondary)',
+                          fontSize: '11.5px', fontWeight: 500, transition: 'all 0.15s',
+                        }}
+                        className="vehicle-quick-link"
+                      >
+                        <Icon size={16} />
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+
+                  {/* Stats link */}
+                  <Link
+                    to="/statistics"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '12px', padding: '10px 12px', borderRadius: '8px',
+                      background: 'var(--accent-light)', textDecoration: 'none',
+                      color: 'var(--accent)', fontSize: '13px', fontWeight: 500,
+                    }}
+                  >
+                    <span>View statistics</span>
+                    <ChevronRight size={14} />
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add / Edit modal */}
+      {modalOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !submitting) setModalOpen(false); }}
+        >
+          <div className="modal">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {editingVehicle ? 'Edit vehicle' : 'Add vehicle'}
+                </h2>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {editingVehicle ? 'Update the details below.' : 'Fill in the details to add a vehicle to your garage.'}
+                </p>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '6px' }} disabled={submitting} onClick={() => setModalOpen(false)}>
+                <X size={18} />
               </button>
             </div>
 
-            {loading ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-                Loading your vehicles...
-              </div>
-            ) : vehicles.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-10 text-center">
-                <h3 className="text-lg font-semibold">Your garage is empty</h3>
-                <p className="mt-2 text-sm text-slate-400">
-                  Add your first vehicle using the form.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {vehicles.map((vehicle) => (
-                  <article
-                    key={vehicle.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-900"
-                  >
-                    <div className="mb-5 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-cyan-400">
-                          {vehicle.make}
-                        </p>
-                        <h3 className="mt-1 text-xl font-semibold">
-                          {vehicle.model}
-                        </h3>
-                      </div>
-                      <span className="rounded-lg bg-slate-800 px-3 py-1 text-sm text-slate-300">
-                        {vehicle.year}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 border-t border-slate-800 pt-4 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span className="text-slate-400">License plate</span>
-                        <span className="font-medium">
-                          {vehicle.licensePlate}
-                        </span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span className="text-slate-400">Mileage</span>
-                        <span className="font-medium">
-                          {vehicle.currentMileage.toLocaleString()} km
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-5 flex gap-3 border-t border-slate-800 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(vehicle)}
-                        className="flex-1 rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium transition hover:bg-slate-800"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(vehicle)}
-                        className="flex-1 rounded-lg border border-red-900/70 px-3 py-2 text-sm font-medium text-red-400 transition hover:bg-red-950"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleViewMileage(vehicle.id)}
-                      className="mt-3 w-full rounded-lg border border-cyan-900/70 px-3 py-2 text-sm font-medium text-cyan-400 transition hover:bg-cyan-950/50"
-                    >
-                      {selectedVehicleId === vehicle.id
-                        ? 'Hide mileage history'
-                        : 'Mileage history'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleViewFuel(vehicle.id)}
-                      className="mt-3 w-full rounded-lg border border-amber-900/70 px-3 py-2 text-sm font-medium text-amber-400 transition hover:bg-amber-950/50"
-                    >
-                      {selectedFuelVehicleId === vehicle.id
-                        ? 'Hide fuel tracking'
-                        : 'Fuel tracking'}
-                    </button>
-                    {selectedVehicleId === vehicle.id && (
-                      <div className="mt-5 border-t border-slate-800 pt-5">
-                        <h4 className="font-semibold">Mileage history</h4>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Record and track your vehicle's odometer readings.
-                        </p>
-
-                        {mileageError && (
-                          <div
-                            role="alert"
-                            className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
-                          >
-                            {mileageError}
-                          </div>
-                        )}
-
-                        <form onSubmit={handleMileageSubmit} className="mt-4 space-y-3">
-                          <div>
-                            <label
-                              htmlFor={`mileage-value-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Mileage (km)
-                            </label>
-                            <input
-                              id={`mileage-value-${vehicle.id}`}
-                              type="number"
-                              min={vehicle.currentMileage}
-                              step={1}
-                              required
-                              value={mileageValue}
-                              onChange={(event) => setMileageValue(event.target.value)}
-                              placeholder={`At least ${vehicle.currentMileage} km`}
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`mileage-note-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Note (optional)
-                            </label>
-                            <input
-                              id={`mileage-note-${vehicle.id}`}
-                              value={mileageNote}
-                              onChange={(event) => setMileageNote(event.target.value)}
-                              maxLength={255}
-                              placeholder="e.g. After a long trip"
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-cyan-500"
-                            />
-                          </div>
-
-                          <button
-                            type="submit"
-                            disabled={mileageSubmitting}
-                            className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
-                          >
-                            {mileageSubmitting ? 'Saving...' : 'Record mileage'}
-                          </button>
-                        </form>
-
-                        <div className="mt-5">
-                          <h5 className="text-sm font-semibold text-slate-200">
-                            Previous readings
-                          </h5>
-
-                          {mileageLoading ? (
-                            <p className="mt-3 text-sm text-slate-400">
-                              Loading history...
-                            </p>
-                          ) : mileageRecords.length === 0 && !mileageError ? (
-                            <p className="mt-3 text-sm text-slate-500">
-                              No mileage records yet.
-                            </p>
-                          ) : (
-                            <ul className="mt-3 space-y-3">
-                              {mileageRecords.map((record) => (
-                                <li
-                                  key={record.id}
-                                  className="rounded-lg bg-slate-800/70 p-3"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <span className="font-semibold">
-                                      {record.mileage.toLocaleString()} km
-                                    </span>
-                                    <time className="text-right text-xs text-slate-400">
-                                      {new Date(record.recordedAt).toLocaleDateString()}
-                                    </time>
-                                  </div>
-
-                                  {record.note && (
-                                    <p className="mt-2 text-sm text-slate-400">
-                                      {record.note}
-                                    </p>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {selectedFuelVehicleId === vehicle.id && (
-                      <div className="mt-5 border-t border-slate-800 pt-5">
-                        <h4 className="font-semibold">Fuel tracking</h4>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Record refuelling visits and track your fuel expenses.
-                        </p>
-
-                        {fuelError && (
-                          <div
-                            role="alert"
-                            className="mt-3 rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300"
-                          >
-                            {fuelError}
-                          </div>
-                        )}
-
-                        <form onSubmit={handleFuelSubmit} className="mt-4 space-y-3">
-                          <div>
-                            <label
-                              htmlFor={`fuel-date-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Refuelling date
-                            </label>
-                            <input
-                              id={`fuel-date-${vehicle.id}`}
-                              type="date"
-                              required
-                              value={fuelDate}
-                              onChange={(event) => setFuelDate(event.target.value)}
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-amber-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`fuel-mileage-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Odometer (km)
-                            </label>
-                            <input
-                              id={`fuel-mileage-${vehicle.id}`}
-                              type="number"
-                              min={vehicle.currentMileage}
-                              step={1}
-                              required
-                              value={fuelMileage}
-                              onChange={(event) => setFuelMileage(event.target.value)}
-                              placeholder={`At least ${vehicle.currentMileage} km`}
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label
-                                htmlFor={`fuel-liters-${vehicle.id}`}
-                                className="mb-1 block text-sm text-slate-300"
-                              >
-                                Litres
-                              </label>
-                              <input
-                                id={`fuel-liters-${vehicle.id}`}
-                                type="number"
-                                min="0.001"
-                                step="0.001"
-                                required
-                                value={fuelLiters}
-                                onChange={(event) => setFuelLiters(event.target.value)}
-                                placeholder="e.g. 35.5"
-                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
-                              />
-                            </div>
-
-                            <div>
-                              <label
-                                htmlFor={`fuel-cost-${vehicle.id}`}
-                                className="mb-1 block text-sm text-slate-300"
-                              >
-                                Total cost (TND)
-                              </label>
-                              <input
-                                id={`fuel-cost-${vehicle.id}`}
-                                type="number"
-                                min="0.001"
-                                step="0.001"
-                                required
-                                value={fuelCost}
-                                onChange={(event) => setFuelCost(event.target.value)}
-                                placeholder="e.g. 75.500"
-                                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`fuel-type-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Fuel type
-                            </label>
-                            <select
-                              id={`fuel-type-${vehicle.id}`}
-                              value={fuelType}
-                              onChange={(event) => setFuelType(event.target.value)}
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
-                            >
-                              <option value="">Select fuel type (optional)</option>
-                              <option value="Essence">Essence</option>
-                              <option value="Gasoil">Gasoil</option>
-                              <option value="Gasoil 50">Gasoil 50</option>
-                              <option value="GPL">GPL</option>
-                              <option value="Other">Other</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`fuel-note-${vehicle.id}`}
-                              className="mb-1 block text-sm text-slate-300"
-                            >
-                              Note (optional)
-                            </label>
-                            <input
-                              id={`fuel-note-${vehicle.id}`}
-                              value={fuelNote}
-                              onChange={(event) => setFuelNote(event.target.value)}
-                              maxLength={255}
-                              placeholder="e.g. Full tank"
-                              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-amber-500"
-                            />
-                          </div>
-
-                          <button
-                            type="submit"
-                            disabled={fuelSubmitting}
-                            className="w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
-                          >
-                            {fuelSubmitting ? 'Saving...' : 'Record refuelling'}
-                          </button>
-                        </form>
-
-                        <div className="mt-5 border-t border-slate-800 pt-4">
-                          <h5 className="font-semibold text-slate-200">Fuel history</h5>
-
-                          {!fuelLoading && fuelLogs.length > 0 && (
-                            <div className="mt-3 rounded-lg bg-amber-950/30 p-3">
-                              <p className="text-sm text-slate-400">Total recorded fuel expenses</p>
-                              <p className="mt-1 text-xl font-semibold text-amber-400">
-                                {(
-                                  fuelLogs.reduce(
-                                    (total, log) => total + log.totalCostMillimes,
-                                    0,
-                                  ) / 1000
-                                ).toLocaleString('fr-TN', {
-                                  minimumFractionDigits: 3,
-                                  maximumFractionDigits: 3,
-                                })}{' '}
-                                TND
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {fuelLogs.length} refuelling record
-                                {fuelLogs.length === 1 ? '' : 's'}
-                              </p>
-                            </div>
-                          )}
-
-                          {fuelLoading ? (
-                            <p className="mt-3 text-sm text-slate-400">
-                              Loading fuel history...
-                            </p>
-                          ) : fuelLogs.length === 0 && !fuelError ? (
-                            <p className="mt-3 text-sm text-slate-500">
-                              No refuelling records yet.
-                            </p>
-                          ) : (
-                            <ul className="mt-3 space-y-3">
-                              {fuelLogs.map((log) => (
-                                <li
-                                  key={log.id}
-                                  className="rounded-lg bg-slate-800/70 p-3"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-semibold text-amber-400">
-                                        {(log.totalCostMillimes / 1000).toLocaleString('fr-TN', {
-                                          minimumFractionDigits: 3,
-                                          maximumFractionDigits: 3,
-                                        })}{' '}
-                                        TND
-                                      </p>
-                                      <p className="mt-1 text-sm text-slate-300">
-                                        {log.liters.toLocaleString('fr-TN')} L
-                                        {log.fuelType ? ` · ${log.fuelType}` : ''}
-                                      </p>
-                                    </div>
-                                    <time className="text-right text-xs text-slate-400">
-                                      {new Date(log.date).toLocaleDateString()}
-                                    </time>
-                                  </div>
-
-                                  <p className="mt-2 text-xs text-slate-400">
-                                    Odometer: {log.mileage.toLocaleString()} km
-                                  </p>
-
-                                  {log.note && (
-                                    <p className="mt-2 text-sm text-slate-400">{log.note}</p>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </article>
-                ))}
+            {error && (
+              <div className="alert alert-error" style={{ marginBottom: '16px' }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                {error}
               </div>
             )}
-          </div>
 
-          <aside className="h-fit rounded-2xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="text-xl font-semibold">
-              {editingVehicleId ? 'Edit vehicle' : 'Add a vehicle'}
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Start tracking your vehicle's history.
-            </p>
-
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <div>
-                <label htmlFor="make" className="mb-2 block text-sm text-slate-300">
-                  Make
-                </label>
-                <input
-                  id="make"
-                  required
-                  value={form.make}
-                  onChange={(event) => updateField('make', event.target.value)}
-                  placeholder="e.g. Citroen"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none transition placeholder:text-slate-600 focus:border-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="model" className="mb-2 block text-sm text-slate-300">
-                  Model
-                </label>
-                <input
-                  id="model"
-                  required
-                  value={form.model}
-                  onChange={(event) => updateField('model', event.target.value)}
-                  placeholder="e.g. C3"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none transition placeholder:text-slate-600 focus:border-cyan-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label htmlFor="year" className="mb-2 block text-sm text-slate-300">
-                    Year
-                  </label>
-                  <input
-                    id="year"
-                    type="number"
-                    required
-                    min={1886}
-                    max={new Date().getFullYear() + 1}
-                    value={form.year}
-                    onChange={(event) =>
-                      updateField('year', Number(event.target.value))
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-                  />
+                  <label className="field-label">Make</label>
+                  <input className="field-input" required placeholder="e.g. Citroën" value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })} />
                 </div>
-
                 <div>
-                  <label htmlFor="mileage" className="mb-2 block text-sm text-slate-300">
-                    Mileage (km)
-                  </label>
-                  <input
-                    id="mileage"
-                    type="number"
-                    required
-                    min={0}
-                    value={form.currentMileage}
-                    onChange={(event) =>
-                      updateField('currentMileage', Number(event.target.value))
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-                  />
+                  <label className="field-label">Model</label>
+                  <input className="field-input" required placeholder="e.g. C3" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="field-label">Year</label>
+                  <input className="field-input" type="number" required min={1886} max={new Date().getFullYear() + 1} value={form.year} onChange={(e) => setForm({ ...form, year: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <label className="field-label">Mileage (km)</label>
+                  <input className="field-input" type="number" required min={0} value={form.currentMileage} onChange={(e) => setForm({ ...form, currentMileage: Number(e.target.value) })} />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="plate" className="mb-2 block text-sm text-slate-300">
-                  License plate
-                </label>
-                <input
-                  id="plate"
-                  required
-                  value={form.licensePlate}
-                  onChange={(event) =>
-                    updateField('licensePlate', event.target.value)
-                  }
-                  placeholder="e.g. 123 TU 4567"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none transition placeholder:text-slate-600 focus:border-cyan-500"
-                />
+                <label className="field-label">License plate</label>
+                <input className="field-input" required placeholder="e.g. 123 TU 4567" value={form.licensePlate} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })} />
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                { 
-                  submitting
-                    ? 'Saving...'
-                    : editingVehicleId
-                      ? 'Save changes'
-                      : 'Add vehicle'
-                }
-              </button>
-              {editingVehicleId && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="w-full rounded-xl border border-slate-700 px-4 py-3 text-slate-300 transition hover:bg-slate-800"
-                >
-                  Cancel editing
+              <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} disabled={submitting} onClick={() => setModalOpen(false)}>
+                  Cancel
                 </button>
-              )}
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={submitting}>
+                  {submitting && <LoaderCircle size={14} className="spinner" />}
+                  {submitting ? 'Saving…' : editingVehicle ? 'Save changes' : 'Add vehicle'}
+                </button>
+              </div>
             </form>
-          </aside>
-        </section>
-      </div>
-    </main>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .vehicle-quick-link:hover {
+          background: var(--bg-hover);
+          border-color: var(--border-default);
+          color: var(--text-primary);
+        }
+      `}</style>
+    </div>
   );
 }
 
-export default App;
+// Inline icon to avoid extra import complexity
+function CalendarLink(props: { size: number }) {
+  return (
+    <svg width={props.size} height={props.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>
+    </svg>
+  );
+}
+
+
