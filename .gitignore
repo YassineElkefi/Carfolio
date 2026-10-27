@@ -10,3 +10,4 @@ frontend/.vite/
 backend/dist/
 
 .DS_Store
+*.dump
