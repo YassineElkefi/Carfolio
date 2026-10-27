@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -40,7 +42,7 @@
   --nav-item-text: #c4b5b2;
   --nav-item-hover-bg: #493237;
 
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-primary);
@@ -190,8 +192,8 @@ body {
 
 .sidebar-logo-text {
   display: block;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 19px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 22px;
   font-weight: 600;
   color: #f3f0e8;
   letter-spacing: -0.2px;
