@@ -179,15 +179,12 @@ body {
   text-decoration: none;
 }
 
-.sidebar-logo-icon {
+.sidebar-logo-image {
   width: 36px;
   height: 36px;
-  background: var(--accent);
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
+  object-fit: cover;
 }
 
 .sidebar-logo-text {

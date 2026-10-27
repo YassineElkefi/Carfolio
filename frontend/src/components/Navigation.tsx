@@ -12,6 +12,7 @@ import {
   Moon,
   ClipboardList,
 } from 'lucide-react';
+import carfolioLogo from '../assets/carfolio-logo.jfif';
 
 const links = [
   { to: '/', label: 'Garage', mobileLabel: 'Garage', icon: Car, end: true },
@@ -50,9 +51,11 @@ export default function Navigation() {
       <nav className="sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">
-            <div className="sidebar-logo-icon">
-              <Car size={16} color="white" strokeWidth={2.5} />
-            </div>
+            <img
+              className="sidebar-logo-image"
+              src={carfolioLogo}
+              alt="Carfolio logo"
+            />
             <div>
               <span className="sidebar-logo-text">Carfolio</span>
               <span className="sidebar-logo-caption">MOTORING JOURNAL</span>
