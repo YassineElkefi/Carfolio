@@ -24,6 +24,7 @@ model Vehicle {
   updatedAt     DateTime @updatedAt
   mileageRecords MileageRecord[]
   fuelLogs FuelLog[]
+  maintenanceRecords MaintenanceRecord[]
 }
 
 model MileageRecord {
@@ -51,4 +52,28 @@ model FuelLog {
   vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@index([vehicleId, date(sort: Desc)])
+}
+
+model MaintenanceRecord {
+  id                String   @id @default(uuid()) @db.Uuid
+  vehicleId         String   @db.Uuid
+
+  itemName          String
+  category          String?
+  purchaseDate      DateTime?
+  maintenanceDate   DateTime @default(now())
+  mileage           Int
+
+  partCostMillimes  Int      @default(0)
+  laborCostMillimes Int      @default(0)
+
+  mechanicName      String?
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, maintenanceDate(sort: Desc)])
 }
