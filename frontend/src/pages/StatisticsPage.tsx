@@ -6,6 +6,7 @@ import { getVehicleStatistics } from '../lib/statistics';
 import type { Vehicle } from '../types/vehicle';
 import type { VehicleStatistics } from '../types/statistics';
 import { TunisianPlate } from '../lib/tunisianPlate';
+import { FieldSelect } from '../components/FormFields';
 
 function formatMoney(millimes: number) {
   return new Intl.NumberFormat('fr-TN', {
@@ -105,17 +106,16 @@ export default function StatisticsPage() {
         </div>
 
         {vehicles.length > 0 && (
-          <select
-            className="field-input field-select"
+          <FieldSelect
             value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
+            onChange={setVehicleId}
             style={{ maxWidth: '260px', margin: 0 }}
             disabled={vehicles.length === 0}
-          >
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>{v.make} {v.model} ({v.year})</option>
-            ))}
-          </select>
+            options={vehicles.map((v) => ({
+              value: v.id,
+              label: `${v.make} ${v.model} (${v.year})`,
+            }))}
+          />
         )}
       </div>
 

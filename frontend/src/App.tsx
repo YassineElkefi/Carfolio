@@ -14,10 +14,14 @@ import {
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, m } from 'framer-motion';
 
 import { createVehicle, getVehicles, updateVehicle, deleteVehicle } from './lib/vehicles';
 import type { CreateVehicleData, Vehicle } from './types/vehicle';
 import { TunisianPlate } from './lib/tunisianPlate';
+import { confirmAction, showToast } from './lib/notifications';
+import { modalBackdropVariants, modalVariants, staggerContainerVariants, staggerItemVariants } from './lib/motion';
+import { FieldInput, FieldNumber } from './components/FormFields';
 
 const EMPTY_FORM: CreateVehicleData = {
   make: '',
@@ -28,7 +32,7 @@ const EMPTY_FORM: CreateVehicleData = {
 };
 
 const CAR_COLORS = [
-  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444',
+  '#64705c', '#8b705a', '#707e86', '#9a8060', '#73675e', '#66746b',
 ];
 
 function getVehicleColor(id: string) {
@@ -85,10 +89,16 @@ export default function GaragePage() {
 
   async function handleDelete(v: Vehicle) {
     setMenuOpenId(null);
-    if (!confirm(`Delete ${v.make} ${v.model}? This cannot be undone.`)) return;
+    const confirmed = await confirmAction({
+      title: 'Remove this vehicle?',
+      text: `Delete ${v.make} ${v.model}? This cannot be undone.`,
+      confirmButtonText: 'Delete vehicle',
+    });
+    if (!confirmed) return;
     try {
       await deleteVehicle(v.id);
       await load();
+      void showToast(`${v.make} ${v.model} deleted.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete vehicle.');
     }
@@ -106,6 +116,7 @@ export default function GaragePage() {
       }
       setModalOpen(false);
       await load();
+      void showToast(editingVehicle ? 'Vehicle details updated.' : 'Vehicle added to your garage.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save vehicle.');
     } finally {
@@ -114,15 +125,15 @@ export default function GaragePage() {
   }
 
   return (
-    <div className="page">
-      {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', gap: '16px' }}>
+    <div className="page garage-page">
+      <div className="garage-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', gap: '16px' }}>
         <div>
+          <span className="garage-kicker">Your collection</span>
           <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text-primary)' }}>
-            My Garage
+            Your garage
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-            {vehicles.length === 0 ? 'No vehicles yet' : `${vehicles.length} vehicle${vehicles.length !== 1 ? 's' : ''}`}
+            {vehicles.length === 0 ? 'A considered home for every car you own.' : `${vehicles.length} vehicle${vehicles.length !== 1 ? 's' : ''} in your collection`}
           </p>
         </div>
 
@@ -163,31 +174,34 @@ export default function GaragePage() {
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+        <m.div
+          className="garage-grid"
+          variants={staggerContainerVariants}
+          initial="initial"
+          animate="animate"
+        >
           {vehicles.map((v) => {
             const color = getVehicleColor(v.id);
             return (
-              <article key={v.id} className="card" style={{ overflow: 'hidden', position: 'relative' }}>
-                {/* Color stripe */}
-                <div style={{ height: '4px', background: color, borderRadius: '12px 12px 0 0' }} />
+              <m.article
+                key={v.id}
+                className="card vehicle-card"
+                variants={staggerItemVariants}
+              >
+                <div className="vehicle-card-rule" />
 
-                <div style={{ padding: '20px' }}>
-                  {/* Header row */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '44px', height: '44px', borderRadius: '10px',
-                        background: `${color}18`, display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                      }}>
+                <div className="vehicle-card-body">
+                  <div className="vehicle-card-heading">
+                    <div className="vehicle-identity">
+                      <div className="vehicle-mark">
                         <Car size={20} style={{ color }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.2px', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                        <div className="vehicle-name">
                           {v.make} {v.model}
                         </div>
-                        <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{v.year}</span>
+                        <div className="vehicle-meta">
+                          <span className="vehicle-year">{v.year}</span>
                           <TunisianPlate plate={v.licensePlate} />
                         </div>
                       </div>
@@ -227,25 +241,20 @@ export default function GaragePage() {
                     </div>
                   </div>
 
-                  {/* Mileage stat */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '12px 14px', background: 'var(--bg-inset)',
-                    borderRadius: '8px', marginBottom: '16px'
-                  }}>
+                  <div className="vehicle-mileage">
                     <Gauge size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                     <div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', marginBottom: '1px' }}>Odometer</div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                      <div className="vehicle-mileage-label">Odometer</div>
+                      <div className="vehicle-mileage-value">
                         {v.currentMileage.toLocaleString()} km
                       </div>
                     </div>
                   </div>
 
-                  {/* Quick links */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <div className="vehicle-quick-links">
                     {[
                       { to: '/fuel', icon: Fuel, label: 'Fuel' },
+                      { to: '/mileage', icon: Gauge, label: 'Mileage' },
                       { to: '/maintenance', icon: Wrench, label: 'Parts' },
                       { to: '/deadlines', icon: CalendarLink, label: 'Reminders' },
                     ].map(({ to, icon: Icon, label }) => (
@@ -254,7 +263,7 @@ export default function GaragePage() {
                         to={to}
                         style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center',
-                          gap: '5px', padding: '10px 6px', borderRadius: '8px',
+                          gap: '5px', padding: '10px 6px', borderRadius: '6px',
                           border: '1px solid var(--border-subtle)',
                           textDecoration: 'none', color: 'var(--text-secondary)',
                           fontSize: '11.5px', fontWeight: 500, transition: 'all 0.15s',
@@ -267,9 +276,9 @@ export default function GaragePage() {
                     ))}
                   </div>
 
-                  {/* Stats link */}
                   <Link
                     to="/statistics"
+                    className="vehicle-stat-link"
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       marginTop: '12px', padding: '10px 12px', borderRadius: '8px',
@@ -281,19 +290,24 @@ export default function GaragePage() {
                     <ChevronRight size={14} />
                   </Link>
                 </div>
-              </article>
+              </m.article>
             );
           })}
-        </div>
+        </m.div>
       )}
 
       {/* Add / Edit modal */}
-      {modalOpen && (
-        <div
+      <AnimatePresence>
+        {modalOpen && (
+        <m.div
           className="modal-backdrop"
+          variants={modalBackdropVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
           onMouseDown={(e) => { if (e.target === e.currentTarget && !submitting) setModalOpen(false); }}
         >
-          <div className="modal">
+          <m.div className="modal" variants={modalVariants}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -319,28 +333,28 @@ export default function GaragePage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label className="field-label">Make</label>
-                  <input className="field-input" required placeholder="e.g. Citroën" value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })} />
+                  <FieldInput required placeholder="e.g. Citroën" value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })} />
                 </div>
                 <div>
                   <label className="field-label">Model</label>
-                  <input className="field-input" required placeholder="e.g. C3" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+                  <FieldInput required placeholder="e.g. C3" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label className="field-label">Year</label>
-                  <input className="field-input" type="number" required min={1886} max={new Date().getFullYear() + 1} value={form.year} onChange={(e) => setForm({ ...form, year: Number(e.target.value) })} />
+                  <FieldNumber required min={1886} max={new Date().getFullYear() + 1} value={form.year} onChange={(value) => setForm({ ...form, year: Number(value) })} />
                 </div>
                 <div>
                   <label className="field-label">Mileage (km)</label>
-                  <input className="field-input" type="number" required min={0} value={form.currentMileage} onChange={(e) => setForm({ ...form, currentMileage: Number(e.target.value) })} />
+                  <FieldNumber required min={0} value={form.currentMileage} onChange={(value) => setForm({ ...form, currentMileage: Number(value) })} />
                 </div>
               </div>
 
               <div>
                 <label className="field-label">License plate</label>
-                <input className="field-input" required placeholder="e.g. 123 TU 4567" value={form.licensePlate} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })} />
+                <FieldInput required placeholder="e.g. 123 TU 4567" value={form.licensePlate} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })} />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
@@ -353,9 +367,10 @@ export default function GaragePage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </m.div>
+        </m.div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         .vehicle-quick-link:hover {
@@ -376,5 +391,3 @@ function CalendarLink(props: { size: number }) {
     </svg>
   );
 }
-
-

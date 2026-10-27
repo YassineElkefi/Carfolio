@@ -26,6 +26,10 @@ import {
 
 import type { Vehicle } from '../types/vehicle';
 import type { VehicleDeadline, DeadlineType, CreateDeadlineData } from '../types/deadline';
+import { confirmAction, showToast } from '../lib/notifications';
+import { modalBackdropVariants, modalVariants } from '../lib/motion';
+import { AnimatePresence, m } from 'framer-motion';
+import { FieldCheckbox, FieldDate, FieldInput, FieldNumber, FieldSelect, FieldTextarea } from '../components/FormFields';
 
 const DEADLINE_TYPES: { value: DeadlineType; label: string }[] = [
   { value: 'insurance', label: 'Insurance' },
@@ -81,7 +85,6 @@ export default function DeadlinesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDeadline, setEditingDeadline] = useState<VehicleDeadline | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -180,13 +183,12 @@ export default function DeadlinesPage() {
     try {
       if (editingDeadline) {
         await updateDeadline(vehicleId, editingDeadline.id, payload);
-        setSuccess('Deadline updated.');
       } else {
         await createDeadline(vehicleId, payload);
-        setSuccess('Deadline created.');
       }
       setModalOpen(false);
       await loadDeadlines(vehicleId);
+      void showToast(editingDeadline ? 'Deadline updated.' : 'Deadline created.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save deadline.');
     } finally {
@@ -195,23 +197,34 @@ export default function DeadlinesPage() {
   }
 
   async function handleComplete(d: VehicleDeadline) {
-    if (!confirm(`Mark "${d.title}" as completed?`)) return;
+    const confirmed = await confirmAction({
+      title: 'Mark this deadline as complete?',
+      text: `"${d.title}" will be moved to completed deadlines.`,
+      confirmButtonText: 'Mark complete',
+      icon: 'question',
+    });
+    if (!confirmed) return;
     const completedMileage = vehicle?.currentMileage;
     try {
       await completeDeadline(vehicleId, d.id, completedMileage !== undefined ? { completedMileage } : {});
-      setSuccess(`"${d.title}" marked as completed.`);
       await loadDeadlines(vehicleId);
+      void showToast(`"${d.title}" marked as completed.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to complete deadline.');
     }
   }
 
   async function handleDelete(d: VehicleDeadline) {
-    if (!confirm(`Delete "${d.title}"? This cannot be undone.`)) return;
+    const confirmed = await confirmAction({
+      title: 'Delete this deadline?',
+      text: `Delete "${d.title}"? This cannot be undone.`,
+      confirmButtonText: 'Delete deadline',
+    });
+    if (!confirmed) return;
     try {
       await deleteDeadline(vehicleId, d.id);
       setDeadlines((prev) => prev.filter((x) => x.id !== d.id));
-      setSuccess('Deadline deleted.');
+      void showToast('Deadline deleted.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete deadline.');
     }
@@ -236,29 +249,21 @@ export default function DeadlinesPage() {
           {error}
         </div>
       )}
-      {success && !modalOpen && (
-        <div className="alert alert-success" style={{ marginBottom: '16px' }}>
-          <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
-          {success}
-        </div>
-      )}
-
       {/* Vehicle selector */}
       {vehicles.length > 0 && (
         <div className="card" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px', flexShrink: 0 }}>
             <Car size={15} /> Vehicle
           </div>
-          <select
-            className="field-input field-select"
+          <FieldSelect
             value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
+            onChange={setVehicleId}
             style={{ maxWidth: '300px', margin: 0, flex: 1 }}
-          >
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>{v.make} {v.model} ({v.year}) — {v.licensePlate}</option>
-            ))}
-          </select>
+            options={vehicles.map((v) => ({
+              value: v.id,
+              label: `${v.make} ${v.model} (${v.year}) — ${v.licensePlate}`,
+            }))}
+          />
         </div>
       )}
 
@@ -292,25 +297,19 @@ export default function DeadlinesPage() {
           {/* Filter bar */}
           <div className="card" style={{ marginBottom: '12px' }}>
             <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)' }}>
-              <select
-                className="field-input field-select"
+              <FieldSelect
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as 'all' | DeadlineType)}
+                onChange={(value) => setFilter(value as 'all' | DeadlineType)}
                 style={{ maxWidth: '200px', margin: 0 }}
-              >
-                <option value="all">All categories</option>
-                {DEADLINE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+                options={[
+                  { value: 'all', label: 'All categories' },
+                  ...DEADLINE_TYPES,
+                ]}
+              />
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: 'auto' }}>
-                <input
-                  type="checkbox"
-                  checked={showCompleted}
-                  onChange={(e) => setShowCompleted(e.target.checked)}
-                  style={{ accentColor: 'var(--accent)' }}
-                />
+              <FieldCheckbox checked={showCompleted} onChange={setShowCompleted}>
                 Show completed
-              </label>
+              </FieldCheckbox>
             </div>
 
             <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -420,9 +419,17 @@ export default function DeadlinesPage() {
       )}
 
       {/* Modal */}
-      {modalOpen && (
-        <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}>
-          <div className="modal">
+      <AnimatePresence>
+        {modalOpen && (
+        <m.div
+          className="modal-backdrop"
+          variants={modalBackdropVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}
+        >
+          <m.div className="modal" variants={modalVariants}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -445,31 +452,34 @@ export default function DeadlinesPage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label className="field-label">Category</label>
-                <select className="field-input field-select" required value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as DeadlineType })}>
-                  {DEADLINE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <FieldSelect
+                  required
+                  value={form.type}
+                  onChange={(type) => setForm({ ...form, type: type as DeadlineType })}
+                  options={DEADLINE_TYPES}
+                />
               </div>
               <div>
                 <label className="field-label">Title</label>
-                <input className="field-input" required maxLength={150} placeholder="e.g. Insurance renewal" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                <FieldInput required maxLength={150} placeholder="e.g. Insurance renewal" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label className="field-label">Due date</label>
-                  <input type="date" className="field-input" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+                  <FieldDate value={form.dueDate} onChange={(dueDate) => setForm({ ...form, dueDate })} />
                 </div>
                 <div>
                   <label className="field-label">Due mileage (km)</label>
-                  <input type="number" className="field-input" min={0} step={1} placeholder="e.g. 90000" value={form.dueMileage} onChange={(e) => setForm({ ...form, dueMileage: e.target.value })} />
+                  <FieldNumber min={0} step={1} placeholder="e.g. 90000" value={form.dueMileage} onChange={(dueMileage) => setForm({ ...form, dueMileage })} />
                 </div>
               </div>
               <div>
                 <label className="field-label">Estimated cost (TND)</label>
-                <input type="number" className="field-input" min={0} step="0.001" placeholder="0.000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                <FieldNumber min={0} step="0.001" placeholder="0.000" value={form.amount} onChange={(amount) => setForm({ ...form, amount })} />
               </div>
               <div>
                 <label className="field-label">Notes (optional)</label>
-                <textarea className="field-input" rows={3} maxLength={1000} placeholder="Additional details…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ resize: 'vertical' }} />
+                <FieldTextarea rows={3} maxLength={1000} placeholder="Additional details…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ resize: 'vertical' }} />
               </div>
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} disabled={saving} onClick={() => setModalOpen(false)}>Cancel</button>
@@ -479,9 +489,10 @@ export default function DeadlinesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </m.div>
+        </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

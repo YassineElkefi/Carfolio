@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
+  CarFront,
+  CircleDot,
+  CircleStop,
+  Cog,
+  Droplets,
+  GitFork,
+  MoveVertical,
+  Package,
+  Sparkles,
+  Zap,
   Wrench,
   Plus,
   LoaderCircle,
@@ -10,7 +20,11 @@ import {
   X,
   AlertCircle,
   SlidersHorizontal,
+  LoaderPinwheel,
+  Engine,
+  Bubbles,
 } from 'lucide-react';
+import { AnimatePresence, m } from 'framer-motion';
 
 import { getVehicles } from '../lib/vehicles';
 import {
@@ -19,6 +33,9 @@ import {
   updateMaintenanceRecord,
   deleteMaintenanceRecord,
 } from '../lib/maintenance';
+import { confirmAction, showToast } from '../lib/notifications';
+import { modalBackdropVariants, modalVariants } from '../lib/motion';
+import { FieldDate, FieldInput, FieldNumber, FieldSelect } from '../components/FormFields';
 
 import type { Vehicle } from '../types/vehicle';
 import type { MaintenanceRecord, CreateMaintenanceData } from '../types/maintenance';
@@ -40,7 +57,26 @@ function formatDate(date: string) {
   });
 }
 
-const CATEGORIES = ['Engine', 'Brakes', 'Clutch & Transmission', 'Suspension', 'Electrical', 'Fluids & Filters', 'Tires', 'Bodywork', 'Other'];
+const CATEGORIES = ['Engine', 'Brakes', 'Clutch & Transmission', 'Suspension', 'Electrical', 'Fluids & Filters', 'Tires', 'Bodywork', 'Car Wash', 'Other'];
+
+const CATEGORY_ICONS: Record<string, typeof Wrench> = {
+  Engine: Engine,
+  Brakes: CircleStop,
+  'Clutch & Transmission': GitFork,
+  Suspension: MoveVertical,
+  Electrical: Zap,
+  'Fluids & Filters': Droplets,
+  Tires: LoaderPinwheel,
+  Bodywork: CarFront,
+  'Car Wash': Bubbles,
+  Other: Package,
+};
+
+function MaintenanceCategoryIcon({ category }: { category?: string }) {
+  const Icon = CATEGORY_ICONS[category ?? ''] ?? Wrench;
+
+  return <Icon size={15} color="var(--accent)" />;
+}
 
 const EMPTY_FORM = {
   itemName: '',
@@ -139,10 +175,16 @@ export default function MaintenancePage() {
   }
 
   async function handleDelete(r: MaintenanceRecord) {
-    if (!confirm(`Delete "${r.itemName}"? This cannot be undone.`)) return;
+    const confirmed = await confirmAction({
+      title: 'Delete this maintenance record?',
+      text: `Delete "${r.itemName}"? This cannot be undone.`,
+      confirmButtonText: 'Delete record',
+    });
+    if (!confirmed) return;
     try {
       await deleteMaintenanceRecord(vehicleId, r.id);
       setRecords((prev) => prev.filter((x) => x.id !== r.id));
+      void showToast('Maintenance record deleted.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete record.');
     }
@@ -175,6 +217,7 @@ export default function MaintenancePage() {
         setRecords((prev) => [created, ...prev]);
       }
       setModalOpen(false);
+      void showToast(editingRecord ? 'Maintenance record updated.' : 'Maintenance record added.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save record.');
     } finally {
@@ -213,16 +256,15 @@ export default function MaintenancePage() {
             <Car size={15} />
             Vehicle
           </div>
-          <select
-            className="field-input field-select"
+          <FieldSelect
             value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
+            onChange={setVehicleId}
             style={{ maxWidth: '300px', margin: 0, flex: 1 }}
-          >
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>{v.make} {v.model} ({v.year}) — {v.licensePlate}</option>
-            ))}
-          </select>
+            options={vehicles.map((v) => ({
+              value: v.id,
+              label: `${v.make} ${v.model} (${v.year}) — ${v.licensePlate}`,
+            }))}
+          />
 
           {vehicle && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '24px', flexShrink: 0 }}>
@@ -254,8 +296,7 @@ export default function MaintenancePage() {
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-              <input
-                className="field-input"
+              <FieldInput
                 style={{ paddingLeft: '32px', margin: 0 }}
                 placeholder="Search parts, mechanics, notes…"
                 value={search}
@@ -283,18 +324,23 @@ export default function MaintenancePage() {
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label className="field-label">Category</label>
-                <select className="field-input field-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} style={{ margin: 0 }}>
-                  <option value="all">All categories</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <FieldSelect
+                  value={filterCategory}
+                  onChange={setFilterCategory}
+                  style={{ margin: 0 }}
+                  options={[
+                    { value: 'all', label: 'All categories' },
+                    ...CATEGORIES.map((category) => ({ value: category, label: category })),
+                  ]}
+                />
               </div>
               <div>
                 <label className="field-label">From date</label>
-                <input type="date" className="field-input" value={filterStart} max={filterEnd || undefined} onChange={(e) => setFilterStart(e.target.value)} style={{ margin: 0 }} />
+                <FieldDate value={filterStart} max={filterEnd || undefined} onChange={setFilterStart} style={{ margin: 0 }} />
               </div>
               <div>
                 <label className="field-label">To date</label>
-                <input type="date" className="field-input" value={filterEnd} min={filterStart || undefined} onChange={(e) => setFilterEnd(e.target.value)} style={{ margin: 0 }} />
+                <FieldDate value={filterEnd} min={filterStart || undefined} onChange={setFilterEnd} style={{ margin: 0 }} />
               </div>
             </div>
           )}
@@ -335,7 +381,7 @@ export default function MaintenancePage() {
                   background: 'var(--accent-light)', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px'
                 }}>
-                  <Wrench size={15} color="var(--accent)" />
+                  <MaintenanceCategoryIcon category={r.category ?? undefined} />
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -383,12 +429,17 @@ export default function MaintenancePage() {
       )}
 
       {/* Modal */}
-      {modalOpen && vehicle && (
-        <div
+      <AnimatePresence>
+        {modalOpen && vehicle && (
+        <m.div
           className="modal-backdrop"
+          variants={modalBackdropVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
           onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}
         >
-          <div className="modal" style={{ maxWidth: '580px' }}>
+          <m.div className="modal" style={{ maxWidth: '580px' }} variants={modalVariants}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -414,42 +465,46 @@ export default function MaintenancePage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label className="field-label">Part or service name</label>
-                  <input className="field-input" required maxLength={150} placeholder="e.g. Clutch kit" value={form.itemName} onChange={(e) => setForm({ ...form, itemName: e.target.value })} />
+                  <FieldInput required maxLength={150} placeholder="e.g. Clutch kit" value={form.itemName} onChange={(e) => setForm({ ...form, itemName: e.target.value })} />
                 </div>
                 <div>
                   <label className="field-label">Category</label>
-                  <select className="field-input field-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                    <option value="">Select category</option>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <FieldSelect
+                    value={form.category}
+                    onChange={(category) => setForm({ ...form, category })}
+                    options={[
+                      { value: '', label: 'Select category' },
+                      ...CATEGORIES.map((category) => ({ value: category, label: category })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="field-label">Mileage (km)</label>
-                  <input type="number" className="field-input" required min={vehicle.currentMileage} step={1} value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })} />
+                  <FieldNumber required min={vehicle.currentMileage} step={1} value={form.mileage} onChange={(mileage) => setForm({ ...form, mileage })} />
                 </div>
                 <div>
                   <label className="field-label">Maintenance date</label>
-                  <input type="date" className="field-input" value={form.maintenanceDate} onChange={(e) => setForm({ ...form, maintenanceDate: e.target.value })} />
+                  <FieldDate value={form.maintenanceDate} onChange={(maintenanceDate) => setForm({ ...form, maintenanceDate })} />
                 </div>
                 <div>
                   <label className="field-label">Purchase date</label>
-                  <input type="date" className="field-input" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} />
+                  <FieldDate value={form.purchaseDate} onChange={(purchaseDate) => setForm({ ...form, purchaseDate })} />
                 </div>
                 <div>
                   <label className="field-label">Part cost (TND)</label>
-                  <input type="number" className="field-input" min={0} step="0.001" placeholder="0.000" value={form.partCost} onChange={(e) => setForm({ ...form, partCost: e.target.value })} />
+                  <FieldNumber min={0} step="0.001" placeholder="0.000" value={form.partCost} onChange={(partCost) => setForm({ ...form, partCost })} />
                 </div>
                 <div>
                   <label className="field-label">Labor cost (TND)</label>
-                  <input type="number" className="field-input" min={0} step="0.001" placeholder="0.000" value={form.laborCost} onChange={(e) => setForm({ ...form, laborCost: e.target.value })} />
+                  <FieldNumber min={0} step="0.001" placeholder="0.000" value={form.laborCost} onChange={(laborCost) => setForm({ ...form, laborCost })} />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label className="field-label">Mechanic / garage</label>
-                  <input className="field-input" maxLength={150} placeholder="Garage name" value={form.mechanicName} onChange={(e) => setForm({ ...form, mechanicName: e.target.value })} />
+                  <FieldInput maxLength={150} placeholder="Garage name" value={form.mechanicName} onChange={(e) => setForm({ ...form, mechanicName: e.target.value })} />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label className="field-label">Notes</label>
-                  <input className="field-input" maxLength={1000} placeholder="Brand, observations…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                  <FieldInput maxLength={1000} placeholder="Brand, observations…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
 
@@ -461,9 +516,10 @@ export default function MaintenancePage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </m.div>
+        </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

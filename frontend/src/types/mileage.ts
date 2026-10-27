@@ -8,5 +8,6 @@ export interface MileageRecord {
 
 export interface CreateMileageData {
   mileage: number;
+  recordedAt?: string;
   note?: string;
 }

@@ -45,11 +45,18 @@ export class MileageService {
       );
     }
 
+    const recordedAt = dto.recordedAt ? new Date(dto.recordedAt) : undefined;
+
+    if (recordedAt && Number.isNaN(recordedAt.getTime())) {
+      throw new BadRequestException('Invalid mileage record date.');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const record = await tx.mileageRecord.create({
         data: {
           vehicleId,
           mileage: dto.mileage,
+          ...(recordedAt && { recordedAt }),
           note: dto.note,
         },
       });

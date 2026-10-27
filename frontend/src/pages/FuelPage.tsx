@@ -9,11 +9,15 @@ import {
   X,
   TrendingUp,
 } from 'lucide-react';
+import { AnimatePresence, m } from 'framer-motion';
 
 import { getVehicles } from '../lib/vehicles';
 import { getFuelLogs, createFuelLog } from '../lib/fuel';
+import { showToast } from '../lib/notifications';
+import { modalBackdropVariants, modalVariants } from '../lib/motion';
 import type { Vehicle } from '../types/vehicle';
 import type { FuelLog } from '../types/fuel';
+import { FieldDate, FieldInput, FieldNumber, FieldSelect } from '../components/FormFields';
 
 function formatMoney(millimes: number) {
   return new Intl.NumberFormat('fr-TN', {
@@ -123,6 +127,7 @@ export default function FuelPage() {
       setModalOpen(false);
       setForm({ ...EMPTY_FORM });
       await loadLogs(vehicleId);
+      void showToast('Fuel record added.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save fuel log.');
     } finally {
@@ -161,16 +166,15 @@ export default function FuelPage() {
               <Car size={15} />
               Vehicle
             </div>
-            <select
-              className="field-input field-select"
+            <FieldSelect
               value={vehicleId}
-              onChange={(e) => setVehicleId(e.target.value)}
+              onChange={setVehicleId}
               style={{ maxWidth: '300px', margin: 0, flex: '1' }}
-            >
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.make} {v.model} ({v.year}) — {v.licensePlate}</option>
-              ))}
-            </select>
+              options={vehicles.map((v) => ({
+                value: v.id,
+                label: `${v.make} ${v.model} (${v.year}) — ${v.licensePlate}`,
+              }))}
+            />
           </div>
         </div>
       )}
@@ -262,12 +266,17 @@ export default function FuelPage() {
       )}
 
       {/* Modal */}
-      {modalOpen && vehicle && (
-        <div
+      <AnimatePresence>
+        {modalOpen && vehicle && (
+        <m.div
           className="modal-backdrop"
+          variants={modalBackdropVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
           onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setModalOpen(false); }}
         >
-          <div className="modal">
+          <m.div className="modal" variants={modalVariants}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>Log refuel</h2>
@@ -291,40 +300,44 @@ export default function FuelPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label className="field-label">Date</label>
-                  <input type="date" className="field-input" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                  <FieldDate required value={form.date} onChange={(date) => setForm({ ...form, date })} />
                 </div>
                 <div>
                   <label className="field-label">Odometer (km)</label>
-                  <input type="number" className="field-input" required min={vehicle.currentMileage} step={1} placeholder={`≥ ${vehicle.currentMileage}`} value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })} />
+                  <FieldNumber required min={vehicle.currentMileage} step={1} placeholder={`≥ ${vehicle.currentMileage}`} value={form.mileage} onChange={(mileage) => setForm({ ...form, mileage })} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label className="field-label">Litres</label>
-                  <input type="number" className="field-input" required min="0.001" step="0.001" placeholder="e.g. 35.000" value={form.liters} onChange={(e) => setForm({ ...form, liters: e.target.value })} />
+                  <FieldNumber required min="0.001" step="0.001" placeholder="e.g. 35.000" value={form.liters} onChange={(liters) => setForm({ ...form, liters })} />
                 </div>
                 <div>
                   <label className="field-label">Total cost (TND)</label>
-                  <input type="number" className="field-input" required min="0.001" step="0.001" placeholder="e.g. 75.000" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} />
+                  <FieldNumber required min="0.001" step="0.001" placeholder="e.g. 75.000" value={form.cost} onChange={(cost) => setForm({ ...form, cost })} />
                 </div>
               </div>
 
               <div>
                 <label className="field-label">Fuel type</label>
-                <select className="field-input field-select" value={form.fuelType} onChange={(e) => setForm({ ...form, fuelType: e.target.value })}>
-                  <option value="">Select (optional)</option>
-                  <option value="Essence">Essence</option>
-                  <option value="Gasoil">Gasoil</option>
-                  <option value="Gasoil 50">Gasoil 50</option>
-                  <option value="GPL">GPL</option>
-                  <option value="Other">Other</option>
-                </select>
+                <FieldSelect
+                  value={form.fuelType}
+                  onChange={(fuelType) => setForm({ ...form, fuelType })}
+                  options={[
+                    { value: '', label: 'Select (optional)' },
+                    { value: 'Essence', label: 'Essence' },
+                    { value: 'Gasoil', label: 'Gasoil' },
+                    { value: 'Gasoil 50', label: 'Gasoil 50' },
+                    { value: 'GPL', label: 'GPL' },
+                    { value: 'Other', label: 'Other' },
+                  ]}
+                />
               </div>
 
               <div>
                 <label className="field-label">Note (optional)</label>
-                <input className="field-input" maxLength={255} placeholder="e.g. Full tank" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                <FieldInput maxLength={255} placeholder="e.g. Full tank" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
@@ -335,9 +348,10 @@ export default function FuelPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </m.div>
+        </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

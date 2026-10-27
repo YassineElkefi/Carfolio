@@ -6,16 +6,18 @@ import {
   CalendarClock,
   BarChart2,
   Fuel,
+  Gauge,
   Sun,
   Moon,
 } from 'lucide-react';
 
 const links = [
-  { to: '/', label: 'Garage', icon: Car, end: true },
-  { to: '/fuel', label: 'Fuel', icon: Fuel, end: false },
-  { to: '/maintenance', label: 'Maintenance', icon: Wrench, end: false },
-  { to: '/deadlines', label: 'Deadlines', icon: CalendarClock, end: false },
-  { to: '/statistics', label: 'Statistics', icon: BarChart2, end: false },
+  { to: '/', label: 'Garage', mobileLabel: 'Garage', icon: Car, end: true },
+  { to: '/mileage', label: 'Mileage', mobileLabel: 'Miles', icon: Gauge, end: false },
+  { to: '/fuel', label: 'Fuel', mobileLabel: 'Fuel', icon: Fuel, end: false },
+  { to: '/maintenance', label: 'Maintenance', mobileLabel: 'Service', icon: Wrench, end: false },
+  { to: '/deadlines', label: 'Deadlines', mobileLabel: 'Due', icon: CalendarClock, end: false },
+  { to: '/statistics', label: 'Statistics', mobileLabel: 'Stats', icon: BarChart2, end: false },
 ];
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -47,11 +49,15 @@ export default function Navigation() {
             <div className="sidebar-logo-icon">
               <Car size={16} color="white" strokeWidth={2.5} />
             </div>
-            <span className="sidebar-logo-text">Carfolio</span>
+            <div>
+              <span className="sidebar-logo-text">Carfolio</span>
+              <span className="sidebar-logo-caption">MOTORING JOURNAL</span>
+            </div>
           </div>
         </div>
 
         <div className="sidebar-nav">
+          <div className="sidebar-nav-label">YOUR COLLECTION</div>
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -87,6 +93,7 @@ export default function Navigation() {
             key={link.to}
             to={link.to}
             end={link.end}
+            aria-label={link.label}
             style={{ flex: 1, textDecoration: 'none' }}
             className={({ isActive }) =>
               isActive ? 'mobile-tab active' : 'mobile-tab'
@@ -108,7 +115,7 @@ export default function Navigation() {
                 }}
               >
                 <link.icon size={20} />
-                {link.label}
+                {link.mobileLabel}
               </div>
             )}
           </NavLink>

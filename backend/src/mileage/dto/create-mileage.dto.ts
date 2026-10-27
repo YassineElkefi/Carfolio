@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -10,6 +11,10 @@ export class CreateMileageDto {
   @IsInt()
   @Min(0)
   mileage: number;
+
+  @IsOptional()
+  @IsDateString()
+  recordedAt?: string;
 
   @IsOptional()
   @IsString()
