@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   CarFront,
-  CircleDot,
   CircleStop,
-  Cog,
   Droplets,
   GitFork,
   MoveVertical,
   Package,
-  Sparkles,
   Zap,
   Wrench,
   Plus,
@@ -23,7 +20,6 @@ import {
   LoaderPinwheel,
   Engine,
   Bubbles,
-  Truck,
   ShieldAlert,
 } from 'lucide-react';
 import { AnimatePresence, m } from 'framer-motion';
